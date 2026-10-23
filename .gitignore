@@ -1,0 +1,15 @@
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Logs
+*.log
+switcher_debug.log
+
+# Vault secrets (Keep saved tokens and credentials private)
+vault/slot_*/
+vault/active_slot.txt
+
+# Rainmeter backups or temps
+*.backup
