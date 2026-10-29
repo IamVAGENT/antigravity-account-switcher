@@ -78,9 +78,15 @@ def cred_delete():
     CredDeleteW(CRED_TARGET, 1, 0)
 
 def extract_email_from_token(raw_bytes):
-    """Extract email address from the id_token JWT."""
+    """Extract email address from the id_token JWT or id_token_email."""
     try:
         data = json.loads(raw_bytes.decode('utf-8'))
+        # 1. New Antigravity format: direct email field
+        if 'id_token_email' in data and data['id_token_email']:
+            return data['id_token_email']
+        if 'email' in data and data['email']:
+            return data['email']
+        # 2. Legacy format: decode JWT id_token
         id_token = data.get('id_token', '')
         if id_token and '.' in id_token:
             payload_b64 = id_token.split('.')[1]
@@ -270,15 +276,36 @@ def get_slot_vault_info(slot):
     meta_file = os.path.join(slot_dir, "meta.json")
     token_file = os.path.join(slot_dir, "token.json")
     
-    if os.path.exists(token_file) and os.path.exists(meta_file):
-        try:
-            with open(meta_file, "r", encoding="utf-8") as f:
-                meta = json.load(f)
-                email = meta.get("email", "")
+    if os.path.exists(token_file):
+        email = ""
+        meta = {}
+        if os.path.exists(meta_file):
+            try:
+                with open(meta_file, "r", encoding="utf-8") as f:
+                    meta = json.load(f)
+                    email = meta.get("email", "")
+            except Exception:
+                pass
+        
+        # If email was blank or missing, extract directly from existing token.json (safe read-only)
+        if not email:
+            try:
+                with open(token_file, "rb") as f:
+                    raw = f.read()
+                email = extract_email_from_token(raw)
                 if email:
-                    return {"configured": True, "email": email}
-        except Exception:
-            pass
+                    meta["slot"] = slot
+                    meta["email"] = email
+                    if "user" not in meta:
+                        meta["user"] = "antigravity"
+                    meta["updated_at"] = time.time()
+                    with open(meta_file, "w", encoding="utf-8") as f:
+                        json.dump(meta, f, indent=2)
+            except Exception:
+                pass
+
+        if email:
+            return {"configured": True, "email": email}
         return {"configured": True, "email": f"Account {slot}"}
     return {"configured": False, "email": f"Empty Slot {slot} (Click to Setup)"}
 
